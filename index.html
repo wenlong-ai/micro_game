@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>连连看小游戏</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #161b22;
+      --accent: #58a6ff;
+      --tile: #1f6feb;
+      --tile-text: #fff;
+      --muted: #8b949e;
+      --success: #3fb950;
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: #e6edf3;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 16px;
+    }
+
+    .app {
+      width: min(960px, 100%);
+      background: var(--panel);
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      box-shadow: 0 20px 70px rgba(0, 0, 0, 0.4);
+      padding: 20px;
+    }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 26px;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: transform 0.1s ease, box-shadow 0.2s ease, background 0.2s ease;
+      box-shadow: 0 6px 20px rgba(88, 166, 255, 0.25);
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px rgba(88, 166, 255, 0.4);
+    }
+
+    button:active {
+      transform: translateY(0);
+      box-shadow: 0 4px 12px rgba(88, 166, 255, 0.2);
+    }
+
+    .info {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .grid {
+      display: grid;
+      gap: 8px;
+      background: #0b0f14;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid #21262d;
+    }
+
+    .tile {
+      width: 68px;
+      height: 68px;
+      border-radius: 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      background: #1c2128;
+      border: 2px solid transparent;
+      color: var(--tile-text);
+      cursor: pointer;
+      transition: border 0.15s ease, transform 0.15s ease, background 0.2s ease;
+    }
+
+    .tile:hover {
+      transform: translateY(-2px);
+    }
+
+    .tile.selected {
+      border-color: var(--accent);
+      background: rgba(88, 166, 255, 0.2);
+    }
+
+    .tile.matched {
+      background: rgba(63, 185, 80, 0.16);
+      border-color: var(--success);
+      color: var(--muted);
+    }
+
+    .tile.empty {
+      visibility: hidden;
+    }
+
+    .status {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    @media (max-width: 720px) {
+      .tile {
+        width: 56px;
+        height: 56px;
+        font-size: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <h1>连连看小游戏</h1>
+        <div class="info">点击两张相同的卡片，并保证连线不超过两个转折即可消除。</div>
+      </div>
+      <div class="controls">
+        <button id="shuffle">重新洗牌</button>
+        <button id="reset">重置关卡</button>
+      </div>
+    </header>
+
+    <div id="grid" class="grid"></div>
+    <div id="status" class="status"></div>
+  </div>
+
+  <script>
+    const rows = 8;
+    const cols = 10;
+    const icons = ['🍀', '🍎', '🍊', '🍋', '🍇', '🍓', '🍉', '🥝', '🍒', '🍑', '🌶️', '🌽', '🍄', '🥑', '🥥', '🍪', '🧀', '🥕', '🍇', '🍯'];
+
+    const gridEl = document.getElementById('grid');
+    const statusEl = document.getElementById('status');
+    const shuffleBtn = document.getElementById('shuffle');
+    const resetBtn = document.getElementById('reset');
+
+    let board = [];
+    let selected = [];
+
+    function initBoard() {
+      // 内部区域 rows x cols，外圈留空帮助转弯
+      const playable = rows * cols;
+      const neededPairs = Math.ceil(playable / 2);
+      const pool = [];
+
+      for (let i = 0; i < neededPairs; i++) {
+        const icon = icons[i % icons.length];
+        pool.push(icon, icon);
+      }
+
+      // 截断到准确数量
+      pool.length = playable;
+
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+
+      board = Array.from({ length: rows + 2 }, (_, r) =>
+        Array.from({ length: cols + 2 }, (_, c) => {
+          if (r === 0 || c === 0 || r === rows + 1 || c === cols + 1) return '';
+          const value = pool.pop();
+          return value;
+        })
+      );
+
+      selected = [];
+      render();
+      updateStatus('点击任意卡片开始配对');
+    }
+
+    function render() {
+      gridEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+      gridEl.innerHTML = '';
+      for (let r = 1; r <= rows; r++) {
+        for (let c = 1; c <= cols; c++) {
+          const value = board[r][c];
+          const tile = document.createElement('button');
+          tile.className = 'tile';
+          tile.dataset.row = r;
+          tile.dataset.col = c;
+
+          if (!value) {
+            tile.classList.add('empty');
+            tile.disabled = true;
+          } else {
+            tile.textContent = value;
+            tile.addEventListener('click', () => onTileClick(r, c));
+          }
+
+          gridEl.appendChild(tile);
+        }
+      }
+    }
+
+    function updateStatus(message) {
+      statusEl.textContent = message;
+    }
+
+    function onTileClick(r, c) {
+      const value = board[r][c];
+      if (!value) return;
+
+      const existingIndex = selected.findIndex(p => p.r === r && p.c === c);
+      if (existingIndex !== -1) {
+        selected.splice(existingIndex, 1);
+        refreshSelection();
+        updateStatus('已取消选择');
+        return;
+      }
+
+      selected.push({ r, c, value });
+      refreshSelection();
+
+      if (selected.length === 2) {
+        const [a, b] = selected;
+        if (a.value !== b.value) {
+          updateStatus('卡片不相同，再试一次');
+          selected = [];
+          refreshSelection();
+          return;
+        }
+
+        if (canConnect(a, b)) {
+          board[a.r][a.c] = '';
+          board[b.r][b.c] = '';
+          selected = [];
+          render();
+          updateStatus('成功消除！继续加油');
+          checkCompletion();
+        } else {
+          updateStatus('两张卡片之间路径超过两个拐点，无法连接');
+          selected = [];
+          refreshSelection();
+        }
+      }
+    }
+
+    function refreshSelection() {
+      document.querySelectorAll('.tile').forEach(tile => {
+        const r = Number(tile.dataset.row);
+        const c = Number(tile.dataset.col);
+        const matched = !board[r][c];
+        tile.classList.toggle('matched', matched);
+        tile.classList.remove('selected');
+      });
+
+      selected.forEach(({ r, c }) => {
+        const tile = document.querySelector(`.tile[data-row="${r}"][data-col="${c}"]`);
+        if (tile) tile.classList.add('selected');
+      });
+    }
+
+    function canConnect(a, b) {
+      const dirs = [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1]
+      ];
+
+      const maxTurns = 2;
+      const visited = Array.from({ length: rows + 2 }, () =>
+        Array.from({ length: cols + 2 }, () => Array(4).fill(Infinity))
+      );
+
+      const queue = [];
+
+      for (let d = 0; d < dirs.length; d++) {
+        visited[a.r][a.c][d] = 0;
+        queue.push({ r: a.r, c: a.c, dir: d, turns: 0 });
+      }
+
+      while (queue.length) {
+        const { r, c, dir, turns } = queue.shift();
+        const [dr, dc] = dirs[dir];
+        const nr = r + dr;
+        const nc = c + dc;
+        const nextTurns = turns;
+
+        if (nextTurns > maxTurns) continue;
+
+        if (!isInside(nr, nc)) continue;
+
+        if ((nr === b.r && nc === b.c) || board[nr][nc] === '') {
+          if (nr === b.r && nc === b.c) return true;
+
+          if (visited[nr][nc][dir] > nextTurns) {
+            visited[nr][nc][dir] = nextTurns;
+            queue.push({ r: nr, c: nc, dir, turns: nextTurns });
+          }
+
+          for (let nd = 0; nd < dirs.length; nd++) {
+            if (nd === dir) continue;
+            const nturns = turns + 1;
+            if (nturns > maxTurns) continue;
+            if (visited[nr][nc][nd] > nturns) {
+              visited[nr][nc][nd] = nturns;
+              queue.push({ r: nr, c: nc, dir: nd, turns: nturns });
+            }
+          }
+        }
+      }
+      return false;
+    }
+
+    function isInside(r, c) {
+      return r >= 0 && c >= 0 && r < rows + 2 && c < cols + 2;
+    }
+
+    function checkCompletion() {
+      for (let r = 1; r <= rows; r++) {
+        for (let c = 1; c <= cols; c++) {
+          if (board[r][c]) return;
+        }
+      }
+      updateStatus('恭喜完成全部配对！点击重置可重新开始');
+    }
+
+    function shuffleBoard() {
+      const remain = [];
+      for (let r = 1; r <= rows; r++) {
+        for (let c = 1; c <= cols; c++) {
+          if (board[r][c]) remain.push(board[r][c]);
+        }
+      }
+
+      for (let i = remain.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [remain[i], remain[j]] = [remain[j], remain[i]];
+      }
+
+      for (let r = 1; r <= rows; r++) {
+        for (let c = 1; c <= cols; c++) {
+          board[r][c] = remain.pop() || '';
+        }
+      }
+
+      selected = [];
+      render();
+      updateStatus('已重新洗牌，继续寻找可连接的卡片');
+    }
+
+    shuffleBtn.addEventListener('click', shuffleBoard);
+    resetBtn.addEventListener('click', initBoard);
+
+    initBoard();
+  </script>
+</body>
+</html>
