@@ -285,7 +285,7 @@
 
         const path = canConnect(a, b);
 
-        if (path) {
+        if (path && isValidTurnPath(path)) {
           drawPath(path);
           selected = [];
           animating = true;
@@ -373,6 +373,33 @@
         }
       }
       return null;
+    }
+
+    function isValidTurnPath(path) {
+      if (!Array.isArray(path) || path.length < 2) return false;
+
+      let turns = 0;
+      let prevDir = null;
+
+      for (let i = 1; i < path.length; i++) {
+        const a = path[i - 1];
+        const b = path[i];
+
+        const dr = b.r - a.r;
+        const dc = b.c - a.c;
+        if (Math.abs(dr) + Math.abs(dc) !== 1) return false; // 非相邻格子，非法路径
+
+        const dirKey = `${dr},${dc}`;
+        if (prevDir !== null && prevDir !== dirKey) turns++;
+        prevDir = dirKey;
+
+        if (turns > 2) return false;
+
+        // 中途不能穿过其它图标（起点终点除外）
+        if (i < path.length - 1 && board[b.r][b.c]) return false;
+      }
+
+      return turns <= 2;
     }
 
     function isInside(r, c) {
