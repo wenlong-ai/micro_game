@@ -18,3 +18,16 @@ python -m http.server 8000
 ```
 
 然后在浏览器输入 `http://localhost:8000/index.html` 即可访问游戏页面。
+
+### 方式三：使用内置 Python 启动脚本
+也可以运行仓库内的 `serve.py` 脚本来启动服务器（默认端口 8000）：
+
+```bash
+python serve.py
+```
+
+如需更换端口，可指定参数：
+
+```bash
+python serve.py --port 8080
+```
