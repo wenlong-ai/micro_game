@@ -1,10 +1,10 @@
-# 易起教育 React + shadcn UI 着陆页
+# 易起教育 React 镜像页
 
-本项目使用 React、Vite、Tailwind CSS 与 shadcn 风格组件，复刻了 https://ejiaqijiaoyu.com/ 的宣传页。包含英雄区、课程特色、分龄课程体系、课堂体验、家长口碑与报名表单等模块。
+本项目通过 React + shadcn 风格组件包装官方站点 `https://ejiaqijiaoyu.com/`，使用 iframe 直接嵌入原始内容，确保文案与图片保持 1:1 无改动。
 
 ## 开发与预览
 
-> 当前环境无法直接访问 npm 官方源，实际安装依赖时请保证可以联网或配置可用的镜像。
+> 当前环境可能无法直接访问 npm 官方源，请根据网络情况配置镜像后再安装依赖。
 
 ```bash
 npm install
@@ -15,7 +15,7 @@ npm run preview
 
 ## 目录结构
 
-- `src/App.jsx`：主页面与各个区块。
-- `src/components/ui/`：简单的 shadcn 风格基础组件。
-- `src/index.css`：全局样式与配色变量。
+- `src/App.jsx`：页面入口，提供导航按钮并嵌入原站 iframe。
+- `src/components/ui/`：shadcn 风格的基础 UI 组件。
+- `src/index.css`：全局样式与布局工具类。
 - `tailwind.config.js`：Tailwind 配置。
