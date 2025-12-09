@@ -385,15 +385,44 @@
       canvas.height = Math.round(rect.height);
     }
 
-    function getTileCenter(r, c) {
+    function getTileInfo(r, c) {
       const tile = document.querySelector(`.tile[data-row="${r}"][data-col="${c}"]`);
       if (!tile) return null;
       const tileRect = tile.getBoundingClientRect();
       const gridRect = gridEl.getBoundingClientRect();
       return {
         x: tileRect.left + tileRect.width / 2 - gridRect.left,
-        y: tileRect.top + tileRect.height / 2 - gridRect.top
+        y: tileRect.top + tileRect.height / 2 - gridRect.top,
+        w: tileRect.width,
+        h: tileRect.height
       };
+    }
+
+    function getEdgePoint(path, index) {
+      const current = path[index];
+      const meta = getTileInfo(current.r, current.c);
+      if (!meta) return null;
+
+      const prev = path[index - 1];
+      const next = path[index + 1];
+
+      // 默认使用中心点
+      const point = { x: meta.x, y: meta.y };
+
+      // 起点或终点偏移到贴近相邻格子的边缘，避免连线穿过图标
+      if (!prev && next) {
+        const dx = Math.sign(next.c - current.c);
+        const dy = Math.sign(next.r - current.r);
+        point.x += (meta.w / 2) * dx;
+        point.y += (meta.h / 2) * dy;
+      } else if (!next && prev) {
+        const dx = Math.sign(current.c - prev.c);
+        const dy = Math.sign(current.r - prev.r);
+        point.x += (meta.w / 2) * dx;
+        point.y += (meta.h / 2) * dy;
+      }
+
+      return point;
     }
 
     function drawPath(path) {
@@ -406,7 +435,7 @@
       ctx.lineCap = 'round';
 
       const points = path
-        .map(({ r, c }) => getTileCenter(r, c))
+        .map((_, i) => getEdgePoint(path, i))
         .filter(Boolean);
 
       if (points.length < 2) return;
