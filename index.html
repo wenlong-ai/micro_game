@@ -398,28 +398,46 @@
       };
     }
 
-    function getEdgePoint(path, index) {
-      const current = path[index];
-      const meta = getTileInfo(current.r, current.c);
-      if (!meta) return null;
+    function getGridMetrics() {
+      const first = gridEl.querySelector('.tile');
+      if (!first) return null;
+      const tileRect = first.getBoundingClientRect();
+      const style = getComputedStyle(gridEl);
+      const gapX = parseFloat(style.columnGap || style.gap || 0) || 0;
+      const gapY = parseFloat(style.rowGap || style.gap || 0) || 0;
+      return {
+        tileW: tileRect.width,
+        tileH: tileRect.height,
+        gapX,
+        gapY
+      };
+    }
 
+    function getCellCenter(r, c, metrics) {
+      const { tileW, tileH, gapX, gapY } = metrics;
+      return {
+        x: (c - 1) * (tileW + gapX) + tileW / 2,
+        y: (r - 1) * (tileH + gapY) + tileH / 2
+      };
+    }
+
+    function getPathPoint(path, index, metrics) {
+      const current = path[index];
       const prev = path[index - 1];
       const next = path[index + 1];
+      const meta = getTileInfo(current.r, current.c);
+      const center = getCellCenter(current.r, current.c, metrics);
+      if (!center) return null;
 
-      // 默认使用中心点
-      const point = { x: meta.x, y: meta.y };
+      const point = { x: center.x, y: center.y };
 
-      // 起点或终点偏移到贴近相邻格子的边缘，避免连线穿过图标
-      if (!prev && next) {
-        const dx = Math.sign(next.c - current.c);
-        const dy = Math.sign(next.r - current.r);
-        point.x += (meta.w / 2) * dx;
-        point.y += (meta.h / 2) * dy;
-      } else if (!next && prev) {
-        const dx = Math.sign(current.c - prev.c);
-        const dy = Math.sign(current.r - prev.r);
-        point.x += (meta.w / 2) * dx;
-        point.y += (meta.h / 2) * dy;
+      // 对有实体卡片的起点或终点进行边缘偏移，确保连线不穿过图标
+      if (meta && ((!prev && next) || (!next && prev))) {
+        const target = next || prev;
+        const dx = Math.sign(target.c - current.c);
+        const dy = Math.sign(target.r - current.r);
+        point.x = meta.x + (meta.w / 2) * dx;
+        point.y = meta.y + (meta.h / 2) * dy;
       }
 
       return point;
@@ -434,8 +452,11 @@
       ctx.lineJoin = 'round';
       ctx.lineCap = 'round';
 
+      const metrics = getGridMetrics();
+      if (!metrics) return;
+
       const points = path
-        .map((_, i) => getEdgePoint(path, i))
+        .map((_, i) => getPathPoint(path, i, metrics))
         .filter(Boolean);
 
       if (points.length < 2) return;
