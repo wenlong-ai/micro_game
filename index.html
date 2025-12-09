@@ -284,9 +284,10 @@
         }
 
         const path = canConnect(a, b);
+        const validated = validateAndNormalizePath(path);
 
-        if (path && isValidTurnPath(path)) {
-          drawPath(path);
+        if (validated) {
+          drawPath(validated);
           selected = [];
           animating = true;
           setTimeout(() => {
@@ -299,7 +300,7 @@
             animating = false;
           }, 280);
         } else {
-          updateStatus('两张卡片之间路径超过两个拐点，无法连接');
+          updateStatus('路径不可达或转弯超过两次，无法连接');
           selected = [];
           refreshSelection();
         }
@@ -375,11 +376,12 @@
       return null;
     }
 
-    function isValidTurnPath(path) {
-      if (!Array.isArray(path) || path.length < 2) return false;
+    function validateAndNormalizePath(path) {
+      if (!Array.isArray(path) || path.length < 2) return null;
 
       let turns = 0;
       let prevDir = null;
+      const normalized = [path[0]];
 
       for (let i = 1; i < path.length; i++) {
         const a = path[i - 1];
@@ -387,19 +389,23 @@
 
         const dr = b.r - a.r;
         const dc = b.c - a.c;
-        if (Math.abs(dr) + Math.abs(dc) !== 1) return false; // 非相邻格子，非法路径
+        if (Math.abs(dr) + Math.abs(dc) !== 1) return null; // 非相邻格子，非法路径
 
         const dirKey = `${dr},${dc}`;
-        if (prevDir !== null && prevDir !== dirKey) turns++;
+        if (prevDir !== null && prevDir !== dirKey) {
+          turns++;
+          normalized.push(a);
+        }
         prevDir = dirKey;
 
-        if (turns > 2) return false;
+        if (turns > 2) return null;
 
         // 中途不能穿过其它图标（起点终点除外）
-        if (i < path.length - 1 && board[b.r][b.c]) return false;
+        if (i < path.length - 1 && board[b.r][b.c]) return null;
       }
 
-      return turns <= 2;
+      normalized.push(path[path.length - 1]);
+      return turns <= 2 ? normalized : null;
     }
 
     function isInside(r, c) {
