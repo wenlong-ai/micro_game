@@ -98,6 +98,18 @@
       border: 1px solid #21262d;
     }
 
+    .board-wrap {
+      position: relative;
+    }
+
+    .line-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
     .tile {
       width: 68px;
       height: 68px;
@@ -160,7 +172,10 @@
       </div>
     </header>
 
-    <div id="grid" class="grid"></div>
+    <div class="board-wrap">
+      <canvas id="line-canvas" class="line-canvas"></canvas>
+      <div id="grid" class="grid"></div>
+    </div>
     <div id="status" class="status"></div>
   </div>
 
@@ -173,11 +188,15 @@
     const statusEl = document.getElementById('status');
     const shuffleBtn = document.getElementById('shuffle');
     const resetBtn = document.getElementById('reset');
+    const canvas = document.getElementById('line-canvas');
+    const ctx = canvas.getContext('2d');
 
     let board = [];
     let selected = [];
+    let animating = false;
 
     function initBoard() {
+      clearPath();
       // 内部区域 rows x cols，外圈留空帮助转弯
       const playable = rows * cols;
       const neededPairs = Math.ceil(playable / 2);
@@ -231,6 +250,8 @@
           gridEl.appendChild(tile);
         }
       }
+
+      resizeCanvas();
     }
 
     function updateStatus(message) {
@@ -238,6 +259,7 @@
     }
 
     function onTileClick(r, c) {
+      if (animating) return;
       const value = board[r][c];
       if (!value) return;
 
@@ -261,13 +283,21 @@
           return;
         }
 
-        if (canConnect(a, b)) {
-          board[a.r][a.c] = '';
-          board[b.r][b.c] = '';
+        const path = canConnect(a, b);
+
+        if (path) {
+          drawPath(path);
           selected = [];
-          render();
-          updateStatus('成功消除！继续加油');
-          checkCompletion();
+          animating = true;
+          setTimeout(() => {
+            clearPath();
+            board[a.r][a.c] = '';
+            board[b.r][b.c] = '';
+            render();
+            updateStatus('成功消除！继续加油');
+            checkCompletion();
+            animating = false;
+          }, 280);
         } else {
           updateStatus('两张卡片之间路径超过两个拐点，无法连接');
           selected = [];
@@ -308,26 +338,27 @@
 
       for (let d = 0; d < dirs.length; d++) {
         visited[a.r][a.c][d] = 0;
-        queue.push({ r: a.r, c: a.c, dir: d, turns: 0 });
+        queue.push({ r: a.r, c: a.c, dir: d, turns: 0, path: [{ r: a.r, c: a.c }] });
       }
 
       while (queue.length) {
-        const { r, c, dir, turns } = queue.shift();
+        const { r, c, dir, turns, path } = queue.shift();
         const [dr, dc] = dirs[dir];
         const nr = r + dr;
         const nc = c + dc;
         const nextTurns = turns;
 
         if (nextTurns > maxTurns) continue;
-
         if (!isInside(nr, nc)) continue;
 
         if ((nr === b.r && nc === b.c) || board[nr][nc] === '') {
-          if (nr === b.r && nc === b.c) return true;
+          const newPath = [...path, { r: nr, c: nc }];
+
+          if (nr === b.r && nc === b.c) return newPath;
 
           if (visited[nr][nc][dir] > nextTurns) {
             visited[nr][nc][dir] = nextTurns;
-            queue.push({ r: nr, c: nc, dir, turns: nextTurns });
+            queue.push({ r: nr, c: nc, dir, turns: nextTurns, path: newPath });
           }
 
           for (let nd = 0; nd < dirs.length; nd++) {
@@ -336,16 +367,60 @@
             if (nturns > maxTurns) continue;
             if (visited[nr][nc][nd] > nturns) {
               visited[nr][nc][nd] = nturns;
-              queue.push({ r: nr, c: nc, dir: nd, turns: nturns });
+              queue.push({ r: nr, c: nc, dir: nd, turns: nturns, path: newPath });
             }
           }
         }
       }
-      return false;
+      return null;
     }
 
     function isInside(r, c) {
       return r >= 0 && c >= 0 && r < rows + 2 && c < cols + 2;
+    }
+
+    function resizeCanvas() {
+      const rect = gridEl.getBoundingClientRect();
+      canvas.width = Math.round(rect.width);
+      canvas.height = Math.round(rect.height);
+    }
+
+    function getTileCenter(r, c) {
+      const tile = document.querySelector(`.tile[data-row="${r}"][data-col="${c}"]`);
+      if (!tile) return null;
+      const tileRect = tile.getBoundingClientRect();
+      const gridRect = gridEl.getBoundingClientRect();
+      return {
+        x: tileRect.left + tileRect.width / 2 - gridRect.left,
+        y: tileRect.top + tileRect.height / 2 - gridRect.top
+      };
+    }
+
+    function drawPath(path) {
+      if (!path || path.length < 2) return;
+      resizeCanvas();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = 'rgba(88, 166, 255, 0.85)';
+      ctx.lineWidth = 6;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+
+      const points = path
+        .map(({ r, c }) => getTileCenter(r, c))
+        .filter(Boolean);
+
+      if (points.length < 2) return;
+
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let i = 1; i < points.length; i++) {
+        ctx.lineTo(points[i].x, points[i].y);
+      }
+      ctx.stroke();
+    }
+
+    function clearPath() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
 
     function checkCompletion() {
@@ -358,6 +433,7 @@
     }
 
     function shuffleBoard() {
+      clearPath();
       const remain = [];
       for (let r = 1; r <= rows; r++) {
         for (let c = 1; c <= cols; c++) {
@@ -383,6 +459,7 @@
 
     shuffleBtn.addEventListener('click', shuffleBoard);
     resetBtn.addEventListener('click', initBoard);
+    window.addEventListener('resize', resizeCanvas);
 
     initBoard();
   </script>
